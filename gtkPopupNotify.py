@@ -19,13 +19,8 @@
 
 
 
-import time
 import gtk
-import gtk.glade
-import sys
 import gobject
-
-
         
 class NotificationStack():
     def __init__(self, size_x=300, size_y=100, timeout=5):
