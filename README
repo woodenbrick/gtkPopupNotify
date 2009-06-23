@@ -1,11 +1,1 @@
-The name should be pretty self-explanatory, gtkPopupNotify allows you to easily create popup notification windows using gtk.
-
-simple example:
-import pygtk
-import gtk
-import gtkPopupNotify
-notifier = gtkPopupNotify.NotificationStack()
-notifier.new_popup("Title", "This is a message")
-gtk.main()
-
- 
+The name should be pretty self-explanatory, gtkPopupNotify allows you to easily create popup notification windows using gtk.  See the module for example usage.
