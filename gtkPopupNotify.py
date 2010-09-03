@@ -124,7 +124,7 @@ class Popup(gtk.Window):
         self.message.set_size_request(stack.size_x - 90, -1)
         self.message.set_alignment(0, 0)
         self.message.set_padding(5, 10)
-        self.message.set_text(message)
+        self.message.set_markup(message)
         self.counter = gtk.Label()
         self.counter.set_alignment(1, 1)
         self.counter.set_padding(3, 3)
