@@ -82,7 +82,7 @@ class NotificationStack():
     
 class Popup(gtk.Window):
     def __init__(self, stack, title, message, image):
-        gtk.Window.__init__(self)
+        gtk.Window.__init__(self, type=gtk.WINDOW_POPUP)
         
         self.set_size_request(stack.size_x, -1)
         self.set_decorated(False)
