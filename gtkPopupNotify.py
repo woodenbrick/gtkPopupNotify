@@ -2,7 +2,12 @@
 #
 #gtkPopupNotify.py
 #
-# Copyright 2009 Daniel Woodhouse
+# Copyright 2009 Daniel Woodhouse modified by NickCis http://github.com/NickCis/gtkPopupNotify
+# Modifications:
+#         Added: * Corner support (notifications can be displayed in all corners
+#                * Use of gtk Stock items to render images in notifications
+#                * Posibility of use fixed height
+#                * Posibility of use image as background
 #
 #This program is free software: you can redistribute it and/or modify
 #it under the terms of the GNU Lesser General Public License as published by
@@ -18,29 +23,67 @@
 #along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-
+import os
 import gtk
 import gobject
+
+# This code is used only on Windows to get the location on the taskbar
+taskbarOffsety = 0
+taskbarOffsetx = 0
+if os.name == "nt":
+    import ctypes
+    from ctypes.wintypes import RECT, DWORD
+    user = ctypes.windll.user32
+    MONITORINFOF_PRIMARY = 1
+    HMONITOR = 1
+
+    class MONITORINFO(ctypes.Structure):
+        _fields_ = [
+            ('cbSize', DWORD),
+            ('rcMonitor', RECT),
+            ('rcWork', RECT),
+            ('dwFlags', DWORD)
+            ]
+
+    taskbarSide = "bottom"
+    taskbarOffset = 30
+    info = MONITORINFO()
+    info.cbSize = ctypes.sizeof(info)
+    info.dwFlags =  MONITORINFOF_PRIMARY
+    user.GetMonitorInfoW(HMONITOR, ctypes.byref(info))
+    if info.rcMonitor.bottom != info.rcWork.bottom:
+        taskbarOffsety = info.rcMonitor.bottom - info.rcWork.bottom
+    if info.rcMonitor.top != info.rcWork.top:
+        taskbarSide = "top"
+        taskbarOffsety = info.rcWork.top - info.rcMonitor.top
+    if info.rcMonitor.left != info.rcWork.left:
+        taskbarSide = "left"
+        taskbarOffsetx = info.rcWork.left - info.rcMonitor.left
+    if info.rcMonitor.right != info.rcWork.right:
+        taskbarSide = "right"
+        taskbarOffsetx = info.rcMonitor.right - info.rcWork.right
         
 class NotificationStack():
-    def __init__(self, size_x=300, size_y=100, timeout=5):
+    def __init__(self, size_x=300, size_y=-1, timeout=5, corner=(False, False)):
         """
         Create a new notification stack.  The recommended way to create Popup instances.
           Parameters:
             `size_x` : The desired width of the notifications.
-            `size_y` : The desired minimum height of the notifications. If the text is
-            longer it will be expanded to fit.
+            `size_y` : The desired minimum height of the notifications. If it isn't set,
+            or setted to None, the size will automatically adjust
             `timeout` : Popup instance will disappear after this timeout if there
             is no human intervention. This can be overridden temporarily by passing
             a new timout to the new_popup method.
+            `coner` : True if top, true if left
         """
         self.size_x = size_x
-        self.size_y = size_y
+        self.size_y = -1 if (size_y == None) else size_y
         self.timeout = timeout
+        self.corner = corner
         """
         Other parameters:
         These will take effect for every popup created after the change.
-            `coner` : True if top, true if left
+            
             `edge_offset_y` : distance from the bottom of the screen and
             the bottom of the stack.
             `edge_offset_x` : distance from the right edge of the screen and
@@ -48,16 +91,17 @@ class NotificationStack():
             `max_popups` : The maximum number of popups to be shown on the screen
             at one time.
             `bg_color` : if None default is used (usually grey). set with a gtk.gdk.Color.
+            `bg_pixmap` : Pixmap to use as background of notification. You can set a gtk.gdk.Pixmap
+            or a path to a image. If none, the color background will be displayed.
             `fg_color` : if None default is used (usually black). set with a gtk.gdk.Color.
-            `show_timeout : if True, a countdown till destruction will be displayed.
-            
-        """
-        self.corner = (False, False)
+            `show_timeout : if True, a countdown till destruction will be displayed.            
+        """        
         self.edge_offset_x = 0
         self.edge_offset_y = 0
         self.max_popups = 5
         self.fg_color = None
         self.bg_color = None
+        self.bg_pixmap = None
         self.show_timeout = False
         
         self._notify_stack = []
@@ -84,9 +128,9 @@ class NotificationStack():
     
 class Popup(gtk.Window):
     def __init__(self, stack, title, message, image):
-        gtk.Window.__init__(self, type=gtk.WINDOW_POPUP)
+        gtk.Window.__init__(self, type=gtk.WINDOW_POPUP)       
         
-        self.set_size_request(stack.size_x, -1)
+        self.set_size_request(stack.size_x, stack.size_y)
         self.set_decorated(False)
         self.set_deletable(False)
         self.set_property("skip-pager-hint", True)
@@ -119,7 +163,10 @@ class Popup(gtk.Window):
             self.image = gtk.Image()
             self.image.set_size_request(70, 70)
             self.image.set_alignment(0, 0)
-            self.image.set_from_file(image)
+            if image in gtk.stock_list_ids():
+                self.image.set_from_stock(image, gtk.ICON_SIZE_DIALOG)
+            else:
+                self.image.set_from_file(image)
             body_box.pack_start(self.image, False, False, 5)
         self.message = gtk.Label()
         self.message.set_property("wrap", True)
@@ -137,7 +184,12 @@ class Popup(gtk.Window):
         main_box.pack_start(body_box)
         self.add(main_box)
 
-        if stack.bg_color is not None:
+        if stack.bg_pixmap is not None:
+            if not type(stack.bg_pixmap) == gtk.gdk.Pixmap:
+                stack.bg_pixmap, NotiPMask = gtk.gdk.pixbuf_new_from_file(stack.bg_pixmap).render_pixmap_and_mask()
+            self.set_app_paintable(True)
+            self.connect_after("realize", self.callbackrealize, stack.bg_pixmap)
+        elif stack.bg_color is not None:
             self.modify_bg(gtk.STATE_NORMAL, stack.bg_color)
         if stack.fg_color is not None:
             self.message.modify_fg(gtk.STATE_NORMAL, stack.fg_color)
@@ -147,6 +199,17 @@ class Popup(gtk.Window):
         self.hover = False
         self.show_all()
         self.x, self.y = self.size_request()
+        #Not displaying over windows bar 
+        if os.name == 'nt':
+            if stack.corner[0] and taskbarSide == "left":
+                stack.edge_offset_x += taskbarOffsetx
+            elif not stack.corner[0] and taskbarSide == 'right':
+                stack.edge_offset_x += taskbarOffsetx
+            if stack.corner[1] and taskbarSide == "top":
+                stack.edge_offset_x += taskbarOffsety
+            elif not stack.corner[1] and taskbarSide == 'bottom':
+                stack.edge_offset_x += taskbarOffsety
+                
         if stack.corner[0]:
             posx = stack.edge_offset_x
         else:
@@ -154,7 +217,7 @@ class Popup(gtk.Window):
         if stack.corner[1]:
             posy = stack._offset + stack.edge_offset_y
         else:
-            posy = gtk.gdk.screen_height()- self.y - stack._offset - stack.edge_offset_y
+            posy = gtk.gdk.screen_height()- self.y - stack._offset - stack.edge_offset_y            
         self.move(posx, posy)
         self.fade_in_timer = gobject.timeout_add(100, self.fade_in)
         
@@ -162,20 +225,16 @@ class Popup(gtk.Window):
 
     def reposition(self, offset, stack):
         """Move the notification window down, when an older notification is removed"""
-        print offset, self.y
         if stack.corner[0]:
             posx = stack.edge_offset_x
         else:
             posx = gtk.gdk.screen_width() - self.x - stack.edge_offset_x
         if stack.corner[1]:
-            #new_offset =  self.y + offset
             posy = offset + stack.edge_offset_y
             new_offset = self.y + offset
-            print 'new_offset', new_offset
         else:
             new_offset = self.y + offset
             posy = gtk.gdk.screen_height() - new_offset - stack.edge_offset_y
-        print 'posy', posy
         self.move(posx, posy)
         return new_offset
 
@@ -223,6 +282,10 @@ class Popup(gtk.Window):
                 gobject.source_remove(getattr(self, timer))
         self.destroy()
         self.destroy_cb(self)
+
+    def callbackrealize(self, widget, pixmap):
+        self.window.set_back_pixmap(pixmap, False)
+        return True
     
     
 
