@@ -152,7 +152,7 @@ class Popup(gtk.Window):
         else:
             posx = gtk.gdk.screen_width() - self.x - stack.edge_offset_x
         if stack.corner[1]:
-            posy = stack._offset - stack.edge_offset_y
+            posy = stack._offset + stack.edge_offset_y
         else:
             posy = gtk.gdk.screen_height()- self.y - stack._offset - stack.edge_offset_y
         self.move(posx, posy)
@@ -162,9 +162,21 @@ class Popup(gtk.Window):
 
     def reposition(self, offset, stack):
         """Move the notification window down, when an older notification is removed"""
-        new_offset = self.y + offset
-        self.move(gtk.gdk.screen_width() - self.x - stack.edge_offset_x,
-                  gtk.gdk.screen_height() - new_offset - stack.edge_offset_y)
+        print offset, self.y
+        if stack.corner[0]:
+            posx = stack.edge_offset_x
+        else:
+            posx = gtk.gdk.screen_width() - self.x - stack.edge_offset_x
+        if stack.corner[1]:
+            #new_offset =  self.y + offset
+            posy = offset + stack.edge_offset_y
+            new_offset = self.y + offset
+            print 'new_offset', new_offset
+        else:
+            new_offset = self.y + offset
+            posy = gtk.gdk.screen_height() - new_offset - stack.edge_offset_y
+        print 'posy', posy
+        self.move(posx, posy)
         return new_offset
 
     
