@@ -40,6 +40,7 @@ class NotificationStack():
         """
         Other parameters:
         These will take effect for every popup created after the change.
+            `coner` : True if top, true if left
             `edge_offset_y` : distance from the bottom of the screen and
             the bottom of the stack.
             `edge_offset_x` : distance from the right edge of the screen and
@@ -51,6 +52,7 @@ class NotificationStack():
             `show_timeout : if True, a countdown till destruction will be displayed.
             
         """
+        self.corner = (False, False)
         self.edge_offset_x = 0
         self.edge_offset_y = 0
         self.max_popups = 5
@@ -145,8 +147,15 @@ class Popup(gtk.Window):
         self.hover = False
         self.show_all()
         self.x, self.y = self.size_request()
-        self.move(gtk.gdk.screen_width() - self.x - stack.edge_offset_x,
-                  gtk.gdk.screen_height()- self.y - stack._offset - stack.edge_offset_y)
+        if stack.corner[0]:
+            posx = stack.edge_offset_x
+        else:
+            posx = gtk.gdk.screen_width() - self.x - stack.edge_offset_x
+        if stack.corner[1]:
+            posy = stack._offset - stack.edge_offset_y
+        else:
+            posy = gtk.gdk.screen_height()- self.y - stack._offset - stack.edge_offset_y
+        self.move(posx, posy)
         self.fade_in_timer = gobject.timeout_add(100, self.fade_in)
         
         
