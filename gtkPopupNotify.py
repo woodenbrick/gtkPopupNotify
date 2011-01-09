@@ -8,6 +8,7 @@
 #                * Use of gtk Stock items to render images in notifications
 #                * Posibility of use fixed height
 #                * Posibility of use image as background
+#                * y separation.
 #
 #This program is free software: you can redistribute it and/or modify
 #it under the terms of the GNU Lesser General Public License as published by
@@ -28,6 +29,7 @@ import gtk
 import gobject
 
 # This code is used only on Windows to get the location on the taskbar
+# Taken from emesene Notifications (Gpl v3)
 taskbarOffsety = 0
 taskbarOffsetx = 0
 if os.name == "nt":
@@ -64,7 +66,7 @@ if os.name == "nt":
         taskbarOffsetx = info.rcMonitor.right - info.rcWork.right
         
 class NotificationStack():
-    def __init__(self, size_x=300, size_y=-1, timeout=5, corner=(False, False)):
+    def __init__(self, size_x=300, size_y=-1, timeout=5, corner=(False, False), sep_y=0):
         """
         Create a new notification stack.  The recommended way to create Popup instances.
           Parameters:
@@ -74,12 +76,14 @@ class NotificationStack():
             `timeout` : Popup instance will disappear after this timeout if there
             is no human intervention. This can be overridden temporarily by passing
             a new timout to the new_popup method.
-            `coner` : True if top, true if left
+            `coner` : 2 Value tuple: (true if left, True if top)
+            `sep_y` : y distance to separate notifications from each other
         """
         self.size_x = size_x
         self.size_y = -1 if (size_y == None) else size_y
         self.timeout = timeout
         self.corner = corner
+        self.sep_y = sep_y
         """
         Other parameters:
         These will take effect for every popup created after the change.
@@ -214,10 +218,12 @@ class Popup(gtk.Window):
             posx = stack.edge_offset_x
         else:
             posx = gtk.gdk.screen_width() - self.x - stack.edge_offset_x
+        sep_y = 0 if (stack._offset == 0) else stack.sep_y
+        self.y += sep_y
         if stack.corner[1]:
-            posy = stack._offset + stack.edge_offset_y
+            posy = stack._offset + stack.edge_offset_y + sep_y
         else:
-            posy = gtk.gdk.screen_height()- self.y - stack._offset - stack.edge_offset_y            
+            posy = gtk.gdk.screen_height()- self.y - stack._offset - stack.edge_offset_y
         self.move(posx, posy)
         self.fade_in_timer = gobject.timeout_add(100, self.fade_in)
         
@@ -232,9 +238,9 @@ class Popup(gtk.Window):
         if stack.corner[1]:
             posy = offset + stack.edge_offset_y
             new_offset = self.y + offset
-        else:
+        else:            
             new_offset = self.y + offset
-            posy = gtk.gdk.screen_height() - new_offset - stack.edge_offset_y
+            posy = gtk.gdk.screen_height() - new_offset - stack.edge_offset_y + stack.sep_y
         self.move(posx, posy)
         return new_offset
 
