@@ -6,7 +6,7 @@
 # modified by NickCis 2010 http://github.com/NickCis/gtkPopupNotify
 # Modifications:
 #         Added: * Corner support (notifications can be displayed in all corners
-#                * Use of gtk Stock items to render images in notifications
+#                * Use of gtk Stock items or pixbuf to render images in notifications
 #                * Posibility of use fixed height
 #                * Posibility of use image as background
 #                * Not displaying over Windows taskbar(taken from emesene gpl v3)
@@ -196,6 +196,8 @@ class Popup(gtk.Window):
             self.image.set_alignment(0, 0)
             if image in gtk.stock_list_ids():
                 self.image.set_from_stock(image, gtk.ICON_SIZE_DIALOG)
+            elif type(image) == gtk.gdk.Pixbuf:
+                self.image.set_from_pixbuf(image)
             else:
                 self.image.set_from_file(image)
             body_box.pack_start(self.image, False, False, 5)
