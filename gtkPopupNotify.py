@@ -2,13 +2,17 @@
 #
 #gtkPopupNotify.py
 #
-# Copyright 2009 Daniel Woodhouse modified by NickCis http://github.com/NickCis/gtkPopupNotify
+# Copyright 2009 Daniel Woodhouse 
+# modified by NickCis 2010 http://github.com/NickCis/gtkPopupNotify
 # Modifications:
 #         Added: * Corner support (notifications can be displayed in all corners
 #                * Use of gtk Stock items to render images in notifications
 #                * Posibility of use fixed height
 #                * Posibility of use image as background
+#                * Not displaying over Windows taskbar(taken from emesene gpl v3)
 #                * y separation.
+#                * font description options
+#                * Callbacks For left, middle and right click
 #
 #This program is free software: you can redistribute it and/or modify
 #it under the terms of the GNU Lesser General Public License as published by
@@ -26,6 +30,7 @@
 
 import os
 import gtk
+import pango
 import gobject
 
 # This code is used only on Windows to get the location on the taskbar
@@ -97,8 +102,13 @@ class NotificationStack():
             `bg_color` : if None default is used (usually grey). set with a gtk.gdk.Color.
             `bg_pixmap` : Pixmap to use as background of notification. You can set a gtk.gdk.Pixmap
             or a path to a image. If none, the color background will be displayed.
+            `bg_mask` : If a gtk.gdk.pixmap is specified under bg_pixmap, the mask of the pixmap has to be setted here.
             `fg_color` : if None default is used (usually black). set with a gtk.gdk.Color.
-            `show_timeout : if True, a countdown till destruction will be displayed.            
+            `show_timeout` : if True, a countdown till destruction will be displayed.
+            `close_but` : if True, the close button will be displayed.
+            `fontdesc` : a 3 value Tuple containing the pango.FontDescriptions of the Header, message and counter
+             (in that order). If a string is suplyed, it will be used for the 3 the same FontDescription.
+             http://doc.stoq.com.br/devel/pygtk/class-pangofontdescription.html
         """        
         self.edge_offset_x = 0
         self.edge_offset_y = 0
@@ -106,17 +116,20 @@ class NotificationStack():
         self.fg_color = None
         self.bg_color = None
         self.bg_pixmap = None
+        self.bg_mask = None
         self.show_timeout = False
+        self.close_but = True
+        self.fontdesc = ("Sans Bold 14", "Sans 12", "Sans 10")
         
         self._notify_stack = []
         self._offset = 0
 
         
-    def new_popup(self, title, message, image=None):
+    def new_popup(self, title, message, image=None, leftCb=None, middleCb=None, rightCb=None):
         """Create a new Popup instance."""
         if len(self._notify_stack) == self.max_popups:
             self._notify_stack[0].hide_notification()
-        self._notify_stack.append(Popup(self, title, message, image))
+        self._notify_stack.append(Popup(self, title, message, image, leftCb, middleCb, rightCb))
         self._offset += self._notify_stack[-1].y
         
     def destroy_popup_cb(self, popup):
@@ -131,8 +144,12 @@ class NotificationStack():
 
     
 class Popup(gtk.Window):
-    def __init__(self, stack, title, message, image):
-        gtk.Window.__init__(self, type=gtk.WINDOW_POPUP)       
+    def __init__(self, stack, title, message, image, leftCb, middleCb, rightCb):
+        gtk.Window.__init__(self, type=gtk.WINDOW_POPUP)
+        
+        self.leftclickCB = leftCb
+        self.middleclickCB = middleCb
+        self.rightclickCB = rightCb        
         
         self.set_size_request(stack.size_x, stack.size_y)
         self.set_decorated(False)
@@ -144,22 +161,32 @@ class Popup(gtk.Window):
         self.set_opacity(0.2)
         self.destroy_cb = stack.destroy_popup_cb
         
+        if type(stack.fontdesc) == tuple or type(stack.fontdesc) == list:
+            fontH, fontM, fontC = stack.fontdesc
+        else:
+            fontH = fontM = fontC = stack.fontdesc
+        
         main_box = gtk.VBox()
         header_box = gtk.HBox()
         self.header = gtk.Label()
         self.header.set_markup("<b>%s</b>" % title)
         self.header.set_padding(3, 3)
         self.header.set_alignment(0, 0)
-        close_button = gtk.Image()
-        
-        close_button.set_from_stock(gtk.STOCK_CANCEL, gtk.ICON_SIZE_BUTTON)
-        close_button.set_padding(3, 3)
-        close_window = gtk.EventBox()
-        close_window.set_visible_window(False)
-        close_window.connect("button-press-event", self.hide_notification)
-        close_window.add(close_button)
+        try:
+            self.header.modify_font(pango.FontDescription(fontH))
+        except Exception, e:
+            print e
         header_box.pack_start(self.header, True, True, 5)
-        header_box.pack_end(close_window, False, False)
+        if stack.close_but:
+            close_button = gtk.Image()
+        
+            close_button.set_from_stock(gtk.STOCK_CANCEL, gtk.ICON_SIZE_BUTTON)
+            close_button.set_padding(3, 3)
+            close_window = gtk.EventBox()
+            close_window.set_visible_window(False)
+            close_window.connect("button-press-event", self.hide_notification)
+            close_window.add(close_button)
+            header_box.pack_end(close_window, False, False)
         main_box.pack_start(header_box)
         
         body_box = gtk.HBox()
@@ -178,21 +205,33 @@ class Popup(gtk.Window):
         self.message.set_alignment(0, 0)
         self.message.set_padding(5, 10)
         self.message.set_markup(message)
+        try:
+            self.message.modify_font(pango.FontDescription(fontM))
+        except Exception, e:
+            print e
         self.counter = gtk.Label()
         self.counter.set_alignment(1, 1)
         self.counter.set_padding(3, 3)
+        try:
+            self.counter.modify_font(pango.FontDescription(fontC))
+        except Exception, e:
+            print e
         self.timeout = stack.timeout
         
         body_box.pack_start(self.message, True, False, 5)
         body_box.pack_end(self.counter, False, False, 5)
         main_box.pack_start(body_box)
-        self.add(main_box)
-
+        eventbox = gtk.EventBox()
+        eventbox.set_property('visible-window', False)
+        eventbox.set_events(gtk.gdk.BUTTON_PRESS_MASK)
+        eventbox.connect("button_press_event", self.onClick)  
+        eventbox.add(main_box)
+        self.add(eventbox)
         if stack.bg_pixmap is not None:
             if not type(stack.bg_pixmap) == gtk.gdk.Pixmap:
-                stack.bg_pixmap, NotiPMask = gtk.gdk.pixbuf_new_from_file(stack.bg_pixmap).render_pixmap_and_mask()
+                stack.bg_pixmap, stack.bg_mask = gtk.gdk.pixbuf_new_from_file(stack.bg_pixmap).render_pixmap_and_mask()
             self.set_app_paintable(True)
-            self.connect_after("realize", self.callbackrealize, stack.bg_pixmap)
+            self.connect_after("realize", self.callbackrealize, stack.bg_pixmap, stack.bg_mask)
         elif stack.bg_color is not None:
             self.modify_bg(gtk.STATE_NORMAL, stack.bg_color)
         if stack.fg_color is not None:
@@ -289,12 +328,24 @@ class Popup(gtk.Window):
         self.destroy()
         self.destroy_cb(self)
 
-    def callbackrealize(self, widget, pixmap):
+    def callbackrealize(self, widget, pixmap, mask=False):
+        #width, height = pixmap.get_size()
+        #self.resize(width, height)
+        if mask is not False:
+            self.shape_combine_mask(mask, 0, 0)
         self.window.set_back_pixmap(pixmap, False)
         return True
-    
-    
 
+    def onClick(self, widget, event):
+        if event.button == 1 and self.leftclickCB != None:
+            self.leftclickCB()
+            self.hide_notification()
+        if event.button == 2 and self.middleclickCB != None:
+            self.middleclickCB()
+            self.hide_notification()
+        if event.button == 3 and self.rightclickCB != None:
+            self.rightclickCB()
+            self.hide_notification()
 
 if __name__ == "__main__":
     #example usage
