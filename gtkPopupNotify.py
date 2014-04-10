@@ -247,16 +247,6 @@ class Popup(gtk.Window):
         self.hover = False
         self.show_all()
         self.x, self.y = self.size_request()
-        #Not displaying over windows bar 
-##        if os.name == 'nt':
-##            if stack.corner[0] and taskbarSide == "left":
-##                stack.edge_offset_x += taskbarOffsetx
-##            elif not stack.corner[0] and taskbarSide == 'right':
-##                stack.edge_offset_x += taskbarOffsetx
-##            if stack.corner[1] and taskbarSide == "top":
-##                stack.edge_offset_y += taskbarOffsety
-##            elif not stack.corner[1] and taskbarSide == 'bottom':
-##                stack.edge_offset_y += taskbarOffsety
                 
         if stack.corner[0]:
             posx = stack.edge_offset_x + taskbarOffsetLeftx
