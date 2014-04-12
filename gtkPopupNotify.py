@@ -14,6 +14,10 @@
 #                * font description options
 #                * Callbacks For left, middle and right click
 #
+# modifed by ntfwc 2014
+# Modifications:
+#   * Fixed taskbar avoidance
+#
 #This program is free software: you can redistribute it and/or modify
 #it under the terms of the GNU Lesser General Public License as published by
 #the Free Software Foundation, either version 3 of the License, or
@@ -35,8 +39,10 @@ import gobject
 
 # This code is used only on Windows to get the location on the taskbar
 # Taken from emesene Notifications (Gpl v3)
-taskbarOffsety = 0
-taskbarOffsetx = 0
+taskbarOffsetTopy = 0
+taskbarOffsetBottomy = 0
+taskbarOffsetLeftx = 0
+taskbarOffsetRightx = 0
 if os.name == "nt":
     import ctypes
     from ctypes.wintypes import RECT, DWORD
@@ -59,16 +65,16 @@ if os.name == "nt":
     info.dwFlags =  MONITORINFOF_PRIMARY
     user.GetMonitorInfoW(HMONITOR, ctypes.byref(info))
     if info.rcMonitor.bottom != info.rcWork.bottom:
-        taskbarOffsety = info.rcMonitor.bottom - info.rcWork.bottom
+        taskbarOffsetBottomy = info.rcMonitor.bottom - info.rcWork.bottom
     if info.rcMonitor.top != info.rcWork.top:
         taskbarSide = "top"
-        taskbarOffsety = info.rcWork.top - info.rcMonitor.top
+        taskbarOffsetTopy = info.rcWork.top - info.rcMonitor.top
     if info.rcMonitor.left != info.rcWork.left:
         taskbarSide = "left"
-        taskbarOffsetx = info.rcWork.left - info.rcMonitor.left
+        taskbarOffsetLeftx = info.rcWork.left - info.rcMonitor.left
     if info.rcMonitor.right != info.rcWork.right:
         taskbarSide = "right"
-        taskbarOffsetx = info.rcMonitor.right - info.rcWork.right
+        taskbarOffsetRightx = info.rcMonitor.right - info.rcWork.right
         
 class NotificationStack():
     def __init__(self, size_x=300, size_y=-1, timeout=5, corner=(False, False), sep_y=0):
@@ -139,9 +145,6 @@ class NotificationStack():
         for note in self._notify_stack:
             offset = note.reposition(offset, self)
         self._offset = offset
-    
-    
-
     
 class Popup(gtk.Window):
     def __init__(self, stack, title, message, image, leftCb, middleCb, rightCb):
@@ -244,27 +247,17 @@ class Popup(gtk.Window):
         self.hover = False
         self.show_all()
         self.x, self.y = self.size_request()
-        #Not displaying over windows bar 
-        if os.name == 'nt':
-            if stack.corner[0] and taskbarSide == "left":
-                stack.edge_offset_x += taskbarOffsetx
-            elif not stack.corner[0] and taskbarSide == 'right':
-                stack.edge_offset_x += taskbarOffsetx
-            if stack.corner[1] and taskbarSide == "top":
-                stack.edge_offset_x += taskbarOffsety
-            elif not stack.corner[1] and taskbarSide == 'bottom':
-                stack.edge_offset_x += taskbarOffsety
                 
         if stack.corner[0]:
-            posx = stack.edge_offset_x
+            posx = stack.edge_offset_x + taskbarOffsetLeftx
         else:
-            posx = gtk.gdk.screen_width() - self.x - stack.edge_offset_x
+            posx = gtk.gdk.screen_width() - self.x - stack.edge_offset_x - taskbarOffsetRightx
         sep_y = 0 if (stack._offset == 0) else stack.sep_y
         self.y += sep_y
         if stack.corner[1]:
-            posy = stack._offset + stack.edge_offset_y + sep_y
+            posy = stack._offset + stack.edge_offset_y + sep_y + taskbarOffsetTopy
         else:
-            posy = gtk.gdk.screen_height()- self.y - stack._offset - stack.edge_offset_y
+            posy = gtk.gdk.screen_height()- self.y - stack._offset - stack.edge_offset_y - taskbarOffsetBottomy
         self.move(posx, posy)
         self.fade_in_timer = gobject.timeout_add(100, self.fade_in)
         
@@ -273,15 +266,15 @@ class Popup(gtk.Window):
     def reposition(self, offset, stack):
         """Move the notification window down, when an older notification is removed"""
         if stack.corner[0]:
-            posx = stack.edge_offset_x
+            posx = stack.edge_offset_x + taskbarOffsetLeftx
         else:
-            posx = gtk.gdk.screen_width() - self.x - stack.edge_offset_x
+            posx = gtk.gdk.screen_width() - self.x - stack.edge_offset_x - taskbarOffsetRightx
         if stack.corner[1]:
-            posy = offset + stack.edge_offset_y
+            posy = offset + stack.edge_offset_y + taskbarOffsetTopy
             new_offset = self.y + offset
         else:            
             new_offset = self.y + offset
-            posy = gtk.gdk.screen_height() - new_offset - stack.edge_offset_y + stack.sep_y
+            posy = gtk.gdk.screen_height() - new_offset - stack.edge_offset_y + stack.sep_y - taskbarOffsetBottomy
         self.move(posx, posy)
         return new_offset
 
